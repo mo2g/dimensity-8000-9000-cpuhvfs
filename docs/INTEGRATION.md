@@ -28,6 +28,7 @@ Add these to `/data/adb/smart-power/config/power.conf`:
 ```ini
 uv_module_id=dimensity-8000-9000-cpuhvfs
 uv_ko_path=/data/adb/modules/dimensity-8000-9000-cpuhvfs/lib/cpuhvfs.ko
+uv_keep_module_enabled=1
 ```
 
 The equivalent environment variables remain supported and take precedence:
@@ -53,16 +54,26 @@ Current Smart Power `bin/uv.sh` defaults to the old module ID. Replace the
 two default assignments near the top of the script with:
 
 ```sh
-SP_UV_MOD_ID="${SP_UV_MOD_ID:-$(sp_get uv_module_id)}"
-SP_UV_MOD_ID="${SP_UV_MOD_ID:-dimensity_8000_9000_cpuhvfs}"
+SP_UV_MOD_ID="${SP_UV_MOD_ID:-${uv_module_id:-dimensity_8100_9000_cpuhvfs}}"
 SP_UV_MOD_DIR="${SP_UV_MOD_DIR:-/data/adb/modules/$SP_UV_MOD_ID}"
-SP_UV_KO="${SP_UV_KO:-$(sp_get uv_ko_path)}"
-SP_UV_KO="${SP_UV_KO:-$SP_UV_MOD_DIR/lib/cpuhvfs.ko}"
+SP_UV_KO="${SP_UV_KO:-${uv_ko_path:-}}"
+if [ -z "$SP_UV_KO" ]; then
+  if [ -n "${uv_module_id:-}" ]; then
+    SP_UV_KO="$SP_UV_MOD_DIR/lib/cpuhvfs.ko"
+  else
+    SP_UV_KO="$SP_UV_MOD_DIR/cpuhvfs.ko"
+  fi
+fi
 ```
 
-`sp_get` must already have loaded `power.conf`; current Smart Power calls
-`sp_load_conf` before these assignments, so the patch is a drop-in. A ready-to-apply
-diff is in `patches/smart-power-uv.patch`.
+`sp_load_conf` is called before these assignments, so `uv_module_id` and
+`uv_ko_path` are already shell variables. No generic `sp_get` helper is
+required. A ready-to-apply diff is in `patches/smart-power-uv.patch`.
+
+The extra `uv_keep_module_enabled=1` is intentional. Smart Power's managed
+mode normally writes a `disable` file into the module it manages. Our module's
+service only loads the driver and never writes an offset, so it is safe to keep
+the Magisk module enabled; Smart Power can still use the same `.ko`.
 
 The old module is **not** a safe fallback for this module because both expose
 the same kernel name `cpuhvfs` and `/proc/eem`. Keep exactly one of them

@@ -86,11 +86,16 @@ su -c '/data/adb/modules/dimensity-8000-9000-cpuhvfs/bin/cpuhvfs-ctl reset-trip'
 Smart Power 当前版本把旧模块路径写死为 `dimensity_8100_9000_cpuhvfs`。本模块选择了独立模块 ID，所以需要在 Smart Power 的 `uv.sh` 中增加配置读取：
 
 ```sh
-SP_UV_MOD_ID="${SP_UV_MOD_ID:-$(sp_get uv_module_id)}"
-SP_UV_MOD_ID="${SP_UV_MOD_ID:-dimensity_8000_9000_cpuhvfs}"
+SP_UV_MOD_ID="${SP_UV_MOD_ID:-${uv_module_id:-dimensity_8100_9000_cpuhvfs}}"
 SP_UV_MOD_DIR="${SP_UV_MOD_DIR:-/data/adb/modules/$SP_UV_MOD_ID}"
-SP_UV_KO="${SP_UV_KO:-$(sp_get uv_ko_path)}"
-SP_UV_KO="${SP_UV_KO:-$SP_UV_MOD_DIR/lib/cpuhvfs.ko}"
+SP_UV_KO="${SP_UV_KO:-${uv_ko_path:-}}"
+if [ -z "$SP_UV_KO" ]; then
+  if [ -n "${uv_module_id:-}" ]; then
+    SP_UV_KO="$SP_UV_MOD_DIR/lib/cpuhvfs.ko"
+  else
+    SP_UV_KO="$SP_UV_MOD_DIR/cpuhvfs.ko"
+  fi
+fi
 ```
 
 另外，如果继续使用 Smart Power 直接写 `/proc/eem` 的旧路径，本模块 `etc/limits.conf` 不会拦截它的写入；必须把 Smart Power 自己的限幅也设为 6：
@@ -105,6 +110,7 @@ su -c 'sh /data/adb/modules/smart_power/bin/uv.sh confirm-sec 600'
 ```ini
 uv_module_id=dimensity-8000-9000-cpuhvfs
 uv_ko_path=/data/adb/modules/dimensity-8000-9000-cpuhvfs/lib/cpuhvfs.ko
+uv_keep_module_enabled=1
 ```
 
 完整契约、退出码和状态字段见 [docs/INTEGRATION.md](docs/INTEGRATION.md)。环境变量 `SP_UV_MOD_ID`、`SP_UV_KO` 仍然优先，便于测试。

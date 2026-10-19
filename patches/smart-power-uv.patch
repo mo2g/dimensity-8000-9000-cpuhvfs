@@ -1,14 +1,28 @@
 --- a/bin/uv.sh
 +++ b/bin/uv.sh
-@@ -23,7 +23,9 @@
+@@ -32,7 +32,14 @@
  SP_EEM_LITE_DIR="${SP_EEM_LITE_DIR:-/proc/eem_lite}"   # 原厂 cpudvfs.ko 提供的只读电压表
 -SP_UV_MOD_ID="${SP_UV_MOD_ID:-dimensity_8100_9000_cpuhvfs}"
-+SP_UV_MOD_ID="${SP_UV_MOD_ID:-$(sp_get uv_module_id)}"
-+SP_UV_MOD_ID="${SP_UV_MOD_ID:-dimensity_8100_9000_cpuhvfs}"
++SP_UV_MOD_ID="${SP_UV_MOD_ID:-${uv_module_id:-dimensity_8100_9000_cpuhvfs}}"
  SP_UV_MOD_DIR="${SP_UV_MOD_DIR:-/data/adb/modules/$SP_UV_MOD_ID}"
 -SP_UV_KO="${SP_UV_KO:-$SP_UV_MOD_DIR/cpuhvfs.ko}"
-+SP_UV_KO="${SP_UV_KO:-$(sp_get uv_ko_path)}"
-+SP_UV_KO="${SP_UV_KO:-$SP_UV_MOD_DIR/lib/cpuhvfs.ko}"
++SP_UV_KO="${SP_UV_KO:-${uv_ko_path:-}}"
++if [ -z "$SP_UV_KO" ]; then
++  if [ -n "${uv_module_id:-}" ]; then
++    SP_UV_KO="$SP_UV_MOD_DIR/lib/cpuhvfs.ko"
++  else
++    SP_UV_KO="$SP_UV_MOD_DIR/cpuhvfs.ko"
++  fi
++fi
  SP_UV_THIRD_CONF="${SP_UV_THIRD_CONF:-/data/eem_offset.conf}"
  SP_INSMOD="${SP_INSMOD:-insmod}"
  UV_STEP_SLEEP="${UV_STEP_SLEEP:-2}"       # 缓降每步间隔（秒）
+@@ -179,4 +179,8 @@ uv_adopt() {
+   uv_mod_present || return 1
++  if [ "${uv_keep_module_enabled:-0}" = "1" ]; then
++    uv_log "Keeping $SP_UV_MOD_ID enabled: its service only loads the driver"
++    return 0
++  fi
+   if [ ! -f "$SP_UV_MOD_DIR/disable" ]; then
+     : > "$SP_UV_MOD_DIR/disable" || return 1
+     mkdir -p "$UV_DIR" 2>/dev/null; : > "$UV_MARK_DISABLED"
