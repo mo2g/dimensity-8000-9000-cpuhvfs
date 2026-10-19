@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Build and compatibility guide
+    url: https://github.com/mo2g/dimensity-8000-9000-cpuhvfs/blob/main/docs/BUILD.md
+    about: Read this before requesting a binary for another kernel.
+  - name: Security report
+    url: https://github.com/mo2g/dimensity-8000-9000-cpuhvfs/security/policy
+    about: Report security-sensitive issues privately.

@@ -1,0 +1,24 @@
+name: Feature request
+description: Suggest a documentation, tooling, or compatibility improvement.
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What user problem would this feature address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the smallest safe change you have in mind.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Device / kernel evidence
+      description: Include kernel, ROM, and test conditions if the request is device-specific.

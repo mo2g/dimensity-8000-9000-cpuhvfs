@@ -1,74 +1,103 @@
-# dimensity-8000-9000-cpuhvfs
+# Dimensity 8000/9000 cpuhvfs
 
-天玑 8000/9000（MT6895/MT6896）的 **开源 cpuhvfs 驱动 + Magisk 模块**，用于替代已停止维护、闭源的「天玑8000/9000降压」v2.0.1。
+**天玑 8000/9000（MT6895/MT6896）开源 CPU 降压驱动，打包为内核锁定的 Magisk 模块。**
 
-> 这是实验性内核模块。默认只加载驱动，**不会自动写入任何降压值**。必须使用与手机内核完全匹配的 `.ko`；内核不匹配时安装器会拒绝继续。
+[English](README.md) · [构建说明](docs/BUILD.md) · [Smart Power 集成](docs/INTEGRATION.md) · [安全模型](docs/SAFETY.md)
 
-## 先回答：`/data/adb/cpuhvfs/state` 会冲突吗？
+[![License: GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-blue.svg)](LICENSE)
+[![Magisk](https://img.shields.io/badge/Magisk-30.6%2B-00A96E.svg)](https://github.com/topjohnwu/Magisk)
+[![Android 13](https://img.shields.io/badge/Android-13-3DDC84.svg)](https://www.android.com/)
+[![Kernel](https://img.shields.io/badge/kernel-5.10.136--pearl--cve43499-orange.svg)](docs/COMPATIBILITY.md)
 
-会。`/data/adb/cpuhvfs` 是全局目录，不绑定 Magisk 模块 ID；任何后来使用同名路径的模块（或旧版脚本）都会和它争用同一份 `state`/`config`，最后写入者覆盖前一个。
+> [!WARNING]
+> 这是实验性内核模块，不是通用降压 App。
+> 仓库内的 `.ko` 只适用于 `5.10.136-pearl-cve43499`；内核不匹配时安装器和
+> `cpuhvfs-ctl` 都会拒绝。使用前必须备份 `boot`。
 
-本模块已经改成：
+![已验证的 Smart Power 状态终端预览](assets/terminal-preview.svg)
 
-```text
-/data/adb/dimensity-8000-9000-cpuhvfs/state
-/data/adb/dimensity-8000-9000-cpuhvfs/trip
-/data/adb/dimensity-8000-9000-cpuhvfs/module.log
-```
+*这是已验证设备上的示例输出。`uv_live` 是实测固件偏移，不是请求值。*
 
-但内核侧仍然有全局命名，无法靠改目录解决：
+## 为什么做这个项目
 
-- 内核模块名固定为 `cpuhvfs`；
-- 调试接口是全局的 `/proc/eem/eem_offset`；
-- 旧的 `dimensity_8100_9000_cpuhvfs` 模块如果仍然启用或驱动仍然加载，会和本模块冲突。
+原来的闭源「天玑8000/9000降压」模块已经停止维护，并且依赖跨内核强行加载的
+`.ko`。本项目从 Xiaomi `pearl-s-oss` 内核树中的 MediaTek `cpufreq_v1` 源码
+重新构建驱动，并加上内核版本、依赖、冲突和状态检查。
 
-因此安装器会检查旧模块和 `/proc/eem`，发现冲突就中止。**目录命名空间和内核命名空间要分开理解。**
+项目刻意保持窄范围：**一个设备家族、一个已知可用的内核二进制、默认只加载驱动。**
+不把“一个 `.ko` 适用于所有天玑手机”当作卖点。
 
-## 模块特性
+## 特性
 
-- 源码来自小米公开的 `pearl-s-oss` 内核树中的 MediaTek `cpufreq_v1` 驱动（GPL-2.0）。
-- 针对本机内核 `5.10.136-pearl-cve43499` 构建；`vermagic` 必须精确匹配。
-- `cpuhvfs-ctl` 提供机器可读的 `probe/load/apply/restore/status`。
-- 默认 `max_abs_steps=6`（约 `-37.5 mV`），只允许 `0` 或负偏移。
-- `apply` 前先做内核、依赖、旧模块、`/proc/eem` 冲突检查；写入按簇逐个进行，失败会尝试清零。
-- 写入前设置 `armed` 和本次 `boot_id`。如果观察期内重启，`post-fs-data.sh` 会触发熔断，禁止下次自动加载。
-- 支持独立的 `power.conf` 或环境变量接入 Smart Power。
+- **真实厂商源码**：来自 Xiaomi pearl 内核树的 MediaTek `cpuhvfs`，GPL-2.0。
+- **内核锁定**：加载前检查 `vermagic` 和 vendor 符号 CRC。
+- **安全默认**：service 只加载驱动，不自动写入任何降压值。
+- **状态隔离**：使用 `/data/adb/dimensity-8000-9000-cpuhvfs/state`，避免通用 `/data/adb/cpuhvfs` 冲突。
+- **重启熔断**：观察期内重启会在下次启动触发 trip，禁止自动加载。
+- **Smart Power 接入**：提供 `power.conf` 契约和已测试的 integration patch。
+- **可审计构建**：源码、配置、vendor CRC 和复现步骤都在仓库内。
 
-## 兼容性
+## 已验证配置
 
-当前随仓库提供的 `lib/cpuhvfs.ko` 只适用于：
+以下是发布二进制实际验证过的环境，不代表所有同芯片机型：
 
-```text
-设备: Redmi Note 12T Pro (pearl)
-内核: 5.10.136-pearl-cve43499
-构建源: MiCode/Xiaomi_Kernel_OpenSource pearl-s-oss @ d96c1a04
-```
+| 项目 | 已验证值 |
+|---|---|
+| 设备 | Redmi Note 12T Pro (`pearl`) |
+| SoC | MediaTek Dimensity 8200-Ultra (`MT6895`) |
+| ROM | MIUI 14 V14.0.5.0.TLHCNXM / Android 13 |
+| 内核 | `5.10.136-pearl-cve43499` |
+| Root | Magisk 30.6 |
+| Smart Power | managed 模式 |
+| 配置 | little `-5`、middle `-8`、big `-9`、cci `0` |
+| 实测偏移 | `-31.25 / -50.00 / -56.25 / 0.00 mV` |
+| 观察期 | 600 秒通过，状态 `stable` |
 
-其他内核、其他 ROM、或其他 MTK 机型必须按 [docs/BUILD.md](docs/BUILD.md) 重新编译，不能直接复用这个二进制。
+> `-5 / -8 / -9 / 0` 是这台设备上已经测试过的 Smart Power 配置。
+> `cpuhvfs-ctl` 独立路径的默认值更保守：`max_abs_steps=6`，约 `-37.5 mV`。
 
-## 安装
+## 快速开始
 
-前置条件：
+### 1. 刷入前
 
-1. Magisk 已正常工作；
-2. 手机当前内核与 `lib/cpuhvfs.ko` 的 `vermagic` 完全一致；
-3. 旧降压模块已禁用并重启，确认 `/proc/eem/eem_offset` 不存在；
-4. 已备份 `boot` 分区，知道如何回滚（刷内核模块本身不改 boot，但设备实验前仍应备份）。
-
-安装后默认不降压：
+1. 备份 `boot_a`，确认回滚命令；
+2. 禁用旧的 `dimensity_8100_9000_cpuhvfs` 并重启；
+3. 确认没有残留驱动：
 
 ```sh
-su -c '/data/adb/modules/dimensity-8000-9000-cpuhvfs/bin/cpuhvfs-ctl status'
+su -c 'lsmod | grep ^cpuhvfs || true'
+su -c 'ls -l /proc/eem/eem_offset 2>/dev/null || true'
+```
+
+本模块是 systemless 模块，不格式化、不清除用户数据，也不修改 `boot`。但内核实验
+仍然必须备份，并知道如何回滚。
+
+### 2. 安装
+
+从 [GitHub Releases](https://github.com/mo2g/dimensity-8000-9000-cpuhvfs/releases) 下载最新 zip，在 Magisk 中安装，然后按正常流程重启一次，
+让 Magisk 完成模块激活。
+
+如果旧驱动已经卸载且 `/proc/eem` 不存在，可以参考免重启切换流程：
+[`docs/NO-REBOOT-SWITCH.md`](docs/NO-REBOOT-SWITCH.md)。
+
+### 3. 探测和加载
+
+```sh
 su -c '/data/adb/modules/dimensity-8000-9000-cpuhvfs/bin/cpuhvfs-ctl probe'
+su -c '/data/adb/modules/dimensity-8000-9000-cpuhvfs/bin/cpuhvfs-ctl load'
+su -c '/data/adb/modules/dimensity-8000-9000-cpuhvfs/bin/cpuhvfs-ctl status'
 ```
 
-手动应用一个保守配置（四簇依次为 little, middle, big, cci）：
+安装本身不会改变电压。
+
+### 4. 使用保守配置测试
 
 ```sh
+# little / middle / big / cci，单位是 EEM 档
 su -c '/data/adb/modules/dimensity-8000-9000-cpuhvfs/bin/cpuhvfs-ctl apply -3 -3 -3 0'
 ```
 
-恢复：
+恢复并卸载：
 
 ```sh
 su -c '/data/adb/modules/dimensity-8000-9000-cpuhvfs/bin/cpuhvfs-ctl restore'
@@ -81,31 +110,9 @@ su -c '/data/adb/modules/dimensity-8000-9000-cpuhvfs/bin/cpuhvfs-ctl unload'
 su -c '/data/adb/modules/dimensity-8000-9000-cpuhvfs/bin/cpuhvfs-ctl reset-trip'
 ```
 
-## 与 Smart Power 集成
+## Smart Power 集成
 
-Smart Power 当前版本把旧模块路径写死为 `dimensity_8100_9000_cpuhvfs`。本模块选择了独立模块 ID，所以需要在 Smart Power 的 `uv.sh` 中增加配置读取：
-
-```sh
-SP_UV_MOD_ID="${SP_UV_MOD_ID:-${uv_module_id:-dimensity_8100_9000_cpuhvfs}}"
-SP_UV_MOD_DIR="${SP_UV_MOD_DIR:-/data/adb/modules/$SP_UV_MOD_ID}"
-SP_UV_KO="${SP_UV_KO:-${uv_ko_path:-}}"
-if [ -z "$SP_UV_KO" ]; then
-  if [ -n "${uv_module_id:-}" ]; then
-    SP_UV_KO="$SP_UV_MOD_DIR/lib/cpuhvfs.ko"
-  else
-    SP_UV_KO="$SP_UV_MOD_DIR/cpuhvfs.ko"
-  fi
-fi
-```
-
-另外，如果继续使用 Smart Power 直接写 `/proc/eem` 的旧路径，本模块 `etc/limits.conf` 不会拦截它的写入；必须把 Smart Power 自己的限幅也设为 6：
-
-```sh
-su -c 'sh /data/adb/modules/smart_power/bin/uv.sh limit 6'
-su -c 'sh /data/adb/modules/smart_power/bin/uv.sh confirm-sec 600'
-```
-
-在 `/data/adb/smart-power/config/power.conf` 写入：
+在 `/data/adb/smart-power/power.conf` 加入：
 
 ```ini
 uv_module_id=dimensity-8000-9000-cpuhvfs
@@ -113,40 +120,73 @@ uv_ko_path=/data/adb/modules/dimensity-8000-9000-cpuhvfs/lib/cpuhvfs.ko
 uv_keep_module_enabled=1
 ```
 
-完整契约、退出码和状态字段见 [docs/INTEGRATION.md](docs/INTEGRATION.md)。环境变量 `SP_UV_MOD_ID`、`SP_UV_KO` 仍然优先，便于测试。
-
-## 安全说明
-
-- 降压会改变 CPU 供电，错误配置可能导致死机、数据损坏或无法开机。先备份，先保守，先观察。
-- 本模块不会自动把配置设为开机配置；重启后驱动最多被加载，偏移不会自动恢复。
-- 内核模块和 `/proc/eem` 是全局资源，不能同时运行两个 `cpuhvfs`。
-- 不要用 `allow_mismatch` 强行加载不同内核的 `.ko`；本模块的 `probe/load` 会拒绝不匹配。
-
-## 构建
+如果 Smart Power 的 `uv.sh` 还不认识这些键，应用：
 
 ```sh
-KERNEL_SRC=/path/to/pearl-s-oss \
-KERNEL_OUT=/path/to/kernel/out \
-CLANG_DIR=/path/to/llvm/bin \
-./scripts/build-ko.sh --copy
+cd /data/adb/modules/smart_power
+patch -p1 < /data/adb/modules/dimensity-8000-9000-cpuhvfs/patches/smart-power-uv.patch
 ```
 
-详细的内核源码、`Module.symvers`、vendor 符号 CRC、LLVM 工具链说明见 [docs/BUILD.md](docs/BUILD.md)。
+然后按 Smart Power 正常流程应用：
 
-## 目录
+```sh
+su -c 'sh /data/adb/modules/smart_power/bin/uv.sh apply 0'
+su -c 'sh /data/adb/modules/smart_power/bin/uv.sh persist on'
+su -c 'sh /data/adb/modules/smart_power/bin/uv.sh status'
+```
+
+`uv_keep_module_enabled=1` 用于阻止 Smart Power 给本模块写 `disable`。本模块的
+service 只加载驱动，不负责写入偏移，因此可以保持 Magisk 模块启用，由 Smart Power
+负责实际偏移和熔断。
+
+> `cpuhvfs-ctl status` 只记录通过 `cpuhvfs-ctl apply` 写入的状态。
+> Smart Power 直接写 `/proc/eem` 时，请看 `uv.sh status` 或 `powerctl status`。
+
+## 兼容性
+
+仓库中的 `lib/cpuhvfs.ko` 只支持上面的内核。其他内核、ROM 或机型必须使用对应
+内核源码、`Module.symvers`、工具链和 vendor 模块 CRC 重新构建。
+
+详见 [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) 和
+[docs/BUILD.md](docs/BUILD.md)。
+
+## 文档
+
+| 文档 | 内容 |
+|---|---|
+| [docs/INTEGRATION.md](docs/INTEGRATION.md) | Smart Power 契约、退出码、状态字段 |
+| [docs/NO-REBOOT-SWITCH.md](docs/NO-REBOOT-SWITCH.md) | 已验证的免重启切换流程 |
+| [docs/BUILD.md](docs/BUILD.md) | 为其他内核重新构建 `.ko` |
+| [docs/SAFETY.md](docs/SAFETY.md) | 限幅、观察期、回滚和熔断 |
+| [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) | 兼容性矩阵和构建要求 |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 模块、驱动、`/proc/eem` 和 Smart Power 数据流 |
+| [docs/FAQ.md](docs/FAQ.md) | 安装、内核和安全常见问题 |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Bug、测试和 PR 规范 |
+| [ROADMAP.md](ROADMAP.md) | 后续计划 |
+
+## 项目结构
 
 ```text
-bin/cpuhvfs-ctl      命令行和安全检查
-bin/lib.sh           路径、状态、写入辅助
-lib/cpuhvfs.ko       本机内核预编译产物
-src/                 MediaTek cpufreq_v1 源码（GPL-2.0）
-etc/limits.conf      安全上限和观察时间
-configs/             设备内核配置和 vendor 符号 CRC
-docs/                集成、构建、安全文档
+bin/cpuhvfs-ctl       命令行和安全检查
+bin/lib.sh            状态、路径、写入辅助
+lib/cpuhvfs.ko        内核锁定的预编译驱动
+src/                  MediaTek cpufreq_v1 源码（GPL-2.0）
+etc/limits.conf       保守限幅和观察期
+configs/              设备配置和 vendor 符号 CRC
+patches/              Smart Power 集成 patch
+docs/                 构建、安全、兼容性、架构文档
 ```
+
+## 贡献与支持
+
+- 提交 PR 前阅读 [CONTRIBUTING.md](CONTRIBUTING.md)；
+- 提 Bug 请附 `uname -r`、`cpuhvfs-ctl status`、`uv.sh status` 和相关 `dmesg`；
+- 不要只发布跨内核二进制，必须同时提供对应源码、配置和符号来源；
+- 如果项目对你有帮助，点一个 Star 能让更多天玑用户找到它。
 
 ## 许可与归属
 
-驱动源码来自 MediaTek，原始版权归 MediaTek Inc. 和 Chienwei Chang；内核树来自 Xiaomi `pearl-s-oss`。本仓库按 GPL-2.0 分发，详见 [LICENSE](LICENSE) 和 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+驱动源码来自 MediaTek，经 Xiaomi pearl 内核树分发；原始版权和 GPL-2.0 声明保留。
+详见 [LICENSE](LICENSE) 和 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
-不提供任何明示或暗示担保。使用风险由设备所有者承担。
+本项目与 Xiaomi、MediaTek、Magisk、Smart Power 均无隶属关系。使用风险由设备所有者承担。

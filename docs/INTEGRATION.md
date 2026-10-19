@@ -23,7 +23,7 @@ Magisk module ID and would collide with another module.
 
 ## 2. `power.conf` keys
 
-Add these to `/data/adb/smart-power/config/power.conf`:
+Add these to `/data/adb/smart-power/power.conf`:
 
 ```ini
 uv_module_id=dimensity-8000-9000-cpuhvfs

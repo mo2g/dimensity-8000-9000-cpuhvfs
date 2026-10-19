@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Reworked README for first-time visitors and added a Chinese translation.
+- Added compatibility, architecture, FAQ, contributing, roadmap, and security docs.
+- Added issue forms and a pull request checklist.
+- Added a tested-device terminal preview and social preview assets.
+
 ## v1.0.0
 
 - First standalone open-source module.

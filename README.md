@@ -1,111 +1,125 @@
-# dimensity-8000-9000-cpuhvfs
+# Dimensity 8000/9000 cpuhvfs
 
-天玑 8000/9000（MT6895/MT6896）的 **开源 cpuhvfs 驱动 + Magisk 模块**，用于替代已停止维护、闭源的「天玑8000/9000降压」v2.0.1。
+**Open-source MediaTek CPU undervolting driver for Dimensity 8000/9000, packaged as a kernel-locked Magisk module.**
 
-> 这是实验性内核模块。默认只加载驱动，**不会自动写入任何降压值**。必须使用与手机内核完全匹配的 `.ko`；内核不匹配时安装器会拒绝继续。
+[中文说明](README.zh-CN.md) · [Build guide](docs/BUILD.md) · [Smart Power integration](docs/INTEGRATION.md) · [Safety model](docs/SAFETY.md)
 
-## 先回答：`/data/adb/cpuhvfs/state` 会冲突吗？
+[![License: GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-blue.svg)](LICENSE)
+[![Magisk](https://img.shields.io/badge/Magisk-30.6%2B-00A96E.svg)](https://github.com/topjohnwu/Magisk)
+[![Android 13](https://img.shields.io/badge/Android-13-3DDC84.svg)](https://www.android.com/)
+[![Kernel](https://img.shields.io/badge/kernel-5.10.136--pearl--cve43499-orange.svg)](docs/COMPATIBILITY.md)
 
-会。`/data/adb/cpuhvfs` 是全局目录，不绑定 Magisk 模块 ID；任何后来使用同名路径的模块（或旧版脚本）都会和它争用同一份 `state`/`config`，最后写入者覆盖前一个。
+> [!WARNING]
+> This is an experimental kernel module, not a universal undervolting app.
+> The included `.ko` is built for exactly `5.10.136-pearl-cve43499`.
+> A mismatch is rejected by the installer and by `cpuhvfs-ctl`. Back up `boot` first.
 
-本模块已经改成：
+![Terminal preview of the tested Smart Power status](assets/terminal-preview.svg)
 
-```text
-/data/adb/dimensity-8000-9000-cpuhvfs/state
-/data/adb/dimensity-8000-9000-cpuhvfs/trip
-/data/adb/dimensity-8000-9000-cpuhvfs/module.log
-```
+*Example output from the tested device. `uv_live` is the measured firmware offset, not a requested profile.*
 
-但内核侧仍然有全局命名，无法靠改目录解决：
+## Why this project exists
 
-- 内核模块名固定为 `cpuhvfs`；
-- 调试接口是全局的 `/proc/eem/eem_offset`；
-- 旧的 `dimensity_8100_9000_cpuhvfs` 模块如果仍然启用或驱动仍然加载，会和本模块冲突。
+The popular closed-source `天玑8000/9000降压` module is unmaintained and ships a
+kernel module that must be force-loaded across kernel versions. This project
+builds the driver from the public MediaTek `cpufreq_v1` source in Xiaomi's
+`pearl-s-oss` kernel tree and wraps it with kernel, dependency, and conflict
+checks.
 
-因此安装器会检查旧模块和 `/proc/eem`，发现冲突就中止。**目录命名空间和内核命名空间要分开理解。**
+It is intentionally narrow: **one device family, one known-good kernel binary,
+and a driver only by default**. That makes the project useful without pretending
+that one `.ko` can be safe on every Dimensity phone.
 
-## 模块特性
+## Features
 
-- 源码来自小米公开的 `pearl-s-oss` 内核树中的 MediaTek `cpufreq_v1` 驱动（GPL-2.0）。
-- 针对本机内核 `5.10.136-pearl-cve43499` 构建；`vermagic` 必须精确匹配。
-- `cpuhvfs-ctl` 提供机器可读的 `probe/load/apply/restore/status`。
-- 默认 `max_abs_steps=6`（约 `-37.5 mV`），只允许 `0` 或负偏移。
-- `apply` 前先做内核、依赖、旧模块、`/proc/eem` 冲突检查；写入按簇逐个进行，失败会尝试清零。
-- 写入前设置 `armed` 和本次 `boot_id`。如果观察期内重启，`post-fs-data.sh` 会触发熔断，禁止下次自动加载。
-- 支持独立的 `power.conf` 或环境变量接入 Smart Power。
+- **Real vendor source** — MediaTek `cpuhvfs` source from the Xiaomi pearl kernel tree (GPL-2.0).
+- **Kernel-locked** — `vermagic` and vendor-symbol CRCs are checked before loading.
+- **Safe default** — the service loads the driver but never writes an undervolt by itself.
+- **Namespaced state** — `/data/adb/dimensity-8000-9000-cpuhvfs/state`; no generic `/data/adb/cpuhvfs` collisions.
+- **Crash latch** — an armed profile is invalidated when the next boot happens during observation.
+- **Smart Power ready** — documented `power.conf` contract and a tested integration patch.
+- **Auditable build** — source, exact config, vendor CRCs, and reproducible build instructions are in the repo.
 
-## 兼容性
+## Tested configuration
 
-当前随仓库提供的 `lib/cpuhvfs.ko` 只适用于：
+This is the configuration used for the published build. Treat it as evidence,
+not as a universal compatibility promise.
 
-```text
-设备: Redmi Note 12T Pro (pearl)
-内核: 5.10.136-pearl-cve43499
-构建源: MiCode/Xiaomi_Kernel_OpenSource pearl-s-oss @ d96c1a04
-```
+| Component | Tested value |
+|---|---|
+| Device | Redmi Note 12T Pro (`pearl`) |
+| SoC | MediaTek Dimensity 8200-Ultra (`MT6895`) |
+| ROM | MIUI 14 V14.0.5.0.TLHCNXM / Android 13 |
+| Kernel | `5.10.136-pearl-cve43499` |
+| Root | Magisk 30.6 |
+| Smart Power | managed mode |
+| Profile | little `-5`, middle `-8`, big `-9`, cci `0` |
+| Measured offset | `-31.25 / -50.00 / -56.25 / 0.00 mV` |
+| Observation | passed 600 s, state `stable` |
 
-其他内核、其他 ROM、或其他 MTK 机型必须按 [docs/BUILD.md](docs/BUILD.md) 重新编译，不能直接复用这个二进制。
+> The `-5 / -8 / -9 / 0` profile is the already-tested Smart Power profile on
+> this specific device. The standalone `cpuhvfs-ctl` default is more conservative:
+> `max_abs_steps=6` (about `-37.5 mV`).
 
-## 安装
+## Quick start
 
-前置条件：
+### 1. Before flashing
 
-1. Magisk 已正常工作；
-2. 手机当前内核与 `lib/cpuhvfs.ko` 的 `vermagic` 完全一致；
-3. 旧降压模块已禁用并重启，确认 `/proc/eem/eem_offset` 不存在；
-4. 已备份 `boot` 分区，知道如何回滚（刷内核模块本身不改 boot，但设备实验前仍应备份）。
-
-安装后默认不降压：
+1. Back up `boot_a` and know the rollback command.
+2. Disable the old `dimensity_8100_9000_cpuhvfs` module and reboot.
+3. Confirm no stale driver is loaded:
 
 ```sh
-su -c '/data/adb/modules/dimensity-8000-9000-cpuhvfs/bin/cpuhvfs-ctl status'
+su -c 'lsmod | grep ^cpuhvfs || true'
+su -c 'ls -l /proc/eem/eem_offset 2>/dev/null || true'
+```
+
+The module is systemless and does **not** format or wipe user data. It also does
+not modify `boot`; a boot backup is still mandatory for kernel experiments.
+
+### 2. Install
+
+Download the latest release from the [GitHub Releases page](https://github.com/mo2g/dimensity-8000-9000-cpuhvfs/releases), install it with
+Magisk, and reboot once so Magisk can activate the module normally.
+
+For the live-switch procedure that avoids a reboot, see
+[`docs/NO-REBOOT-SWITCH.md`](docs/NO-REBOOT-SWITCH.md). That procedure is only
+for a device where the old driver is already unloaded and `/proc/eem` is absent.
+
+### 3. Probe and load
+
+```sh
 su -c '/data/adb/modules/dimensity-8000-9000-cpuhvfs/bin/cpuhvfs-ctl probe'
+su -c '/data/adb/modules/dimensity-8000-9000-cpuhvfs/bin/cpuhvfs-ctl load'
+su -c '/data/adb/modules/dimensity-8000-9000-cpuhvfs/bin/cpuhvfs-ctl status'
 ```
 
-手动应用一个保守配置（四簇依次为 little, middle, big, cci）：
+Installation itself does not apply a voltage change.
+
+### 4. Try a conservative profile
 
 ```sh
+# little / middle / big / cci, in EEM steps
 su -c '/data/adb/modules/dimensity-8000-9000-cpuhvfs/bin/cpuhvfs-ctl apply -3 -3 -3 0'
 ```
 
-恢复：
+Restore and unload:
 
 ```sh
 su -c '/data/adb/modules/dimensity-8000-9000-cpuhvfs/bin/cpuhvfs-ctl restore'
 su -c '/data/adb/modules/dimensity-8000-9000-cpuhvfs/bin/cpuhvfs-ctl unload'
 ```
 
-如果出现 `trip=reboot_during_observation`，先确认设备稳定，再执行：
+If `trip=reboot_during_observation` appears, review stability first and then:
 
 ```sh
 su -c '/data/adb/modules/dimensity-8000-9000-cpuhvfs/bin/cpuhvfs-ctl reset-trip'
 ```
 
-## 与 Smart Power 集成
+## Smart Power integration
 
-Smart Power 当前版本把旧模块路径写死为 `dimensity_8100_9000_cpuhvfs`。本模块选择了独立模块 ID，所以需要在 Smart Power 的 `uv.sh` 中增加配置读取：
-
-```sh
-SP_UV_MOD_ID="${SP_UV_MOD_ID:-${uv_module_id:-dimensity_8100_9000_cpuhvfs}}"
-SP_UV_MOD_DIR="${SP_UV_MOD_DIR:-/data/adb/modules/$SP_UV_MOD_ID}"
-SP_UV_KO="${SP_UV_KO:-${uv_ko_path:-}}"
-if [ -z "$SP_UV_KO" ]; then
-  if [ -n "${uv_module_id:-}" ]; then
-    SP_UV_KO="$SP_UV_MOD_DIR/lib/cpuhvfs.ko"
-  else
-    SP_UV_KO="$SP_UV_MOD_DIR/cpuhvfs.ko"
-  fi
-fi
-```
-
-另外，如果继续使用 Smart Power 直接写 `/proc/eem` 的旧路径，本模块 `etc/limits.conf` 不会拦截它的写入；必须把 Smart Power 自己的限幅也设为 6：
-
-```sh
-su -c 'sh /data/adb/modules/smart_power/bin/uv.sh limit 6'
-su -c 'sh /data/adb/modules/smart_power/bin/uv.sh confirm-sec 600'
-```
-
-在 `/data/adb/smart-power/config/power.conf` 写入：
+The tested setup uses Smart Power in `managed` mode. Add the following to
+`/data/adb/smart-power/power.conf`:
 
 ```ini
 uv_module_id=dimensity-8000-9000-cpuhvfs
@@ -113,40 +127,79 @@ uv_ko_path=/data/adb/modules/dimensity-8000-9000-cpuhvfs/lib/cpuhvfs.ko
 uv_keep_module_enabled=1
 ```
 
-完整契约、退出码和状态字段见 [docs/INTEGRATION.md](docs/INTEGRATION.md)。环境变量 `SP_UV_MOD_ID`、`SP_UV_KO` 仍然优先，便于测试。
-
-## 安全说明
-
-- 降压会改变 CPU 供电，错误配置可能导致死机、数据损坏或无法开机。先备份，先保守，先观察。
-- 本模块不会自动把配置设为开机配置；重启后驱动最多被加载，偏移不会自动恢复。
-- 内核模块和 `/proc/eem` 是全局资源，不能同时运行两个 `cpuhvfs`。
-- 不要用 `allow_mismatch` 强行加载不同内核的 `.ko`；本模块的 `probe/load` 会拒绝不匹配。
-
-## 构建
+Apply the compatibility patch if Smart Power does not already read these keys:
 
 ```sh
-KERNEL_SRC=/path/to/pearl-s-oss \
-KERNEL_OUT=/path/to/kernel/out \
-CLANG_DIR=/path/to/llvm/bin \
-./scripts/build-ko.sh --copy
+cd /data/adb/modules/smart_power
+patch -p1 < /data/adb/modules/dimensity-8000-9000-cpuhvfs/patches/smart-power-uv.patch
 ```
 
-详细的内核源码、`Module.symvers`、vendor 符号 CRC、LLVM 工具链说明见 [docs/BUILD.md](docs/BUILD.md)。
+Then use the normal Smart Power commands:
 
-## 目录
+```sh
+su -c 'sh /data/adb/modules/smart_power/bin/uv.sh apply 0'
+su -c 'sh /data/adb/modules/smart_power/bin/uv.sh persist on'
+su -c 'sh /data/adb/modules/smart_power/bin/uv.sh status'
+```
+
+`uv_keep_module_enabled=1` prevents Smart Power from writing a `disable` marker
+into this module; the module service is driver-only, so it is safe to keep the
+Magisk module enabled while Smart Power owns the offsets and circuit breaker.
+
+> `cpuhvfs-ctl status` tracks `cpuhvfs-ctl apply` only. When Smart Power writes
+> `/proc/eem/eem_offset` directly, use `uv.sh status` or `powerctl status` for
+> the live measured offsets.
+
+## Compatibility
+
+The binary in `lib/` supports only the kernel listed above. Other kernels,
+ROMs, or devices require a rebuild against the matching kernel source,
+`Module.symvers`, toolchain, and vendor module CRCs.
+
+See [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) and
+[`docs/BUILD.md`](docs/BUILD.md).
+
+## Documentation
+
+| Document | Purpose |
+|---|---|
+| [docs/INTEGRATION.md](docs/INTEGRATION.md) | Smart Power contract, exit codes, status fields |
+| [docs/NO-REBOOT-SWITCH.md](docs/NO-REBOOT-SWITCH.md) | Tested live-switch procedure without a reboot |
+| [docs/BUILD.md](docs/BUILD.md) | Rebuilding the `.ko` for another kernel |
+| [docs/SAFETY.md](docs/SAFETY.md) | Limits, observation window, rollback, trip behavior |
+| [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) | Tested matrix and build requirements |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Module, driver, `/proc/eem`, and Smart Power flow |
+| [docs/FAQ.md](docs/FAQ.md) | Common install, kernel, and safety questions |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Bug reports, testing, and pull requests |
+| [ROADMAP.md](ROADMAP.md) | What is planned next |
+
+## Project layout
 
 ```text
-bin/cpuhvfs-ctl      命令行和安全检查
-bin/lib.sh           路径、状态、写入辅助
-lib/cpuhvfs.ko       本机内核预编译产物
-src/                 MediaTek cpufreq_v1 源码（GPL-2.0）
-etc/limits.conf      安全上限和观察时间
-configs/             设备内核配置和 vendor 符号 CRC
-docs/                集成、构建、安全文档
+bin/cpuhvfs-ctl       CLI and safety checks
+bin/lib.sh            scoped state and driver helpers
+lib/cpuhvfs.ko        prebuilt, kernel-locked driver
+src/                  MediaTek cpufreq_v1 source (GPL-2.0)
+etc/limits.conf       conservative limits and observation window
+configs/              device config and vendor symbol CRCs
+patches/              Smart Power integration patch
+docs/                 build, safety, compatibility, architecture
 ```
 
-## 许可与归属
+## Contributing and support
 
-驱动源码来自 MediaTek，原始版权归 MediaTek Inc. 和 Chienwei Chang；内核树来自 Xiaomi `pearl-s-oss`。本仓库按 GPL-2.0 分发，详见 [LICENSE](LICENSE) 和 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+- Use the issue forms and include `uname -r`, `cpuhvfs-ctl status`,
+  `uv.sh status`, and relevant `dmesg` lines.
+- Do not publish a binary built for a different kernel without also publishing
+  the matching source, config, and symbol provenance.
+- If this project saves you time, a star helps other MediaTek users find it.
 
-不提供任何明示或暗示担保。使用风险由设备所有者承担。
+## License and credits
+
+The driver source is MediaTek code from the Xiaomi pearl kernel tree. Original
+copyright and GPL-2.0 notices are preserved. See [LICENSE](LICENSE) and
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+This project is not affiliated with Xiaomi, MediaTek, Magisk, or Smart Power.
+Use at your own risk.
