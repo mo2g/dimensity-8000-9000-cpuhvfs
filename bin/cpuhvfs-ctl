@@ -1,0 +1,197 @@
+#!/system/bin/sh
+# cpuhvfs-ctl - CLI for the Dimensity 8000/9000 cpuhvfs module.
+# Contract: docs/INTEGRATION.md.  The default action is intentionally read-only.
+set -u
+umask 077
+
+SELF_DIR=$(cd "$(dirname "$0")" && pwd)
+. "$SELF_DIR/lib.sh"
+
+cmd_version() { printf '1.0.0\n'; }
+
+conflict_reason() {
+  if old_module_active; then
+    printf 'old_module_enabled\n'
+    return 0
+  fi
+  if [ -d "$TRIP_FILE" ] || [ -f "$TRIP_FILE" ]; then
+    printf 'circuit_breaker_tripped\n'
+    return 0
+  fi
+  if eem_present && ! ko_loaded; then
+    printf 'foreign_proc_eem\n'
+    return 0
+  fi
+  return 1
+}
+
+cmd_probe() {
+  rc=0
+  printf 'kernel=%s\n' "$(kernel_rel)"
+  printf 'ko_vermagic=%s\n' "$(ko_vermagic 2>/dev/null || printf 'missing')"
+  if ko_match; then printf 'ko_match=1\n'; else printf 'ko_match=0\n'; rc=2; fi
+  if [ -f "$KO" ]; then printf 'ko_present=1\n'; else printf 'ko_present=0\n'; rc=2; fi
+  if grep -q '^mcupm ' /proc/modules 2>/dev/null; then printf 'dep_mcupm=1\n'; else printf 'dep_mcupm=0\n'; fi
+  if grep -q '^mtk_tinysys_ipi ' /proc/modules 2>/dev/null; then printf 'dep_ipi=1\n'; else printf 'dep_ipi=0\n'; fi
+  if ko_loaded; then printf 'cpuhvfs_loaded=1\n'; else printf 'cpuhvfs_loaded=0\n'; fi
+  if eem_present; then printf 'eem_present=1\n'; else printf 'eem_present=0\n'; fi
+  _why=$(conflict_reason) || _why=
+  if [ -n "$_why" ]; then
+    printf 'conflict=%s\n' "$_why"
+    rc=5
+  else
+    printf 'conflict=none\n'
+  fi
+  printf 'armed=%s\n' "$(state_get_or armed 0)"
+  printf 'state=%s\n' "$(state_get_or state idle)"
+  return "$rc"
+}
+
+cmd_load() {
+  _why=$(conflict_reason) || _why=
+  [ -z "$_why" ] || { EXIT_CODE=5 die "refusing to load: $_why"; }
+  ko_match || { EXIT_CODE=2 die "kernel/ko mismatch: kernel=$(kernel_rel) ko=$(ko_vermagic)"; }
+  if ko_loaded; then
+    if eem_present; then
+      state_set ko_loaded 1
+      state_set state ready
+      printf 'loaded=1\n'
+      return 0
+    fi
+    EXIT_CODE=3 die "cpuhvfs is loaded but /proc/eem/eem_offset is missing"
+  fi
+  if eem_present; then
+    EXIT_CODE=5 die "foreign /proc/eem exists; reboot after disabling the old module"
+  fi
+  if ! grep -q '^mcupm ' /proc/modules 2>/dev/null; then
+    EXIT_CODE=3 die "mcupm is not loaded (vendor dependency missing)"
+  fi
+  if ! grep -q '^mtk_tinysys_ipi ' /proc/modules 2>/dev/null; then
+    EXIT_CODE=3 die "mtk_tinysys_ipi is not loaded (vendor dependency missing)"
+  fi
+  insmod "$KO" || { EXIT_CODE=3 die "insmod failed: $KO"; }
+  i=0
+  while [ "$i" -lt 20 ]; do
+    eem_present && break
+    sleep 1
+    i=$((i + 1))
+  done
+  eem_present || { EXIT_CODE=3 die "eem interface not present after load"; }
+  state_set ko_loaded 1
+  state_set state ready
+  printf 'loaded=1\n'
+}
+
+cmd_restore() {
+  _rc=0
+  if eem_present; then
+    write_offset 0 0 || _rc=1
+    write_offset 1 0 || _rc=1
+    write_offset 2 0 || _rc=1
+    write_offset 3 0 || _rc=1
+  fi
+  state_set applied '0 0 0 0'
+  [ "$_rc" -eq 0 ] || { EXIT_CODE=3 die "failed to write zero offsets"; }
+  printf 'restored=1\n'
+}
+
+cmd_unload() {
+  cmd_restore >/dev/null 2>&1 || true
+  if ko_loaded; then
+    rmmod cpuhvfs || { EXIT_CODE=3 die "rmmod failed"; }
+  fi
+  state_set ko_loaded 0
+  state_set armed 0
+  state_set state idle
+  printf 'loaded=0\n'
+}
+
+cmd_apply() {
+  [ $# -eq 4 ] || { EXIT_CODE=4 die "usage: apply <little> <middle> <big> <cci>"; }
+  _max=$(get_limit max_abs_steps 6)
+  _i=0
+  for _v in "$@"; do
+    is_int "$_v" || { EXIT_CODE=4 die "invalid offset: $_v"; }
+    [ "$_v" -le 0 ] || { EXIT_CODE=4 die "positive offset is not allowed: $_v"; }
+    _name=''
+    case "$_i" in
+      0) _name=little ;;
+      1) _name=middle ;;
+      2) _name=big ;;
+      3) _name=cci ;;
+    esac
+    _cap=$(get_cluster_limit "$_name" "$_max")
+    case "$_cap" in ''|*[!0-9]*) _cap=$_max;; esac
+    _a=$(int_abs "$_v")
+    [ "$_a" -le "$_cap" ] || { EXIT_CODE=4 die "$_name offset $_v exceeds limit $_cap"; }
+    _i=$((_i + 1))
+  done
+  _why=$(conflict_reason) || _why=
+  [ -z "$_why" ] || { EXIT_CODE=5 die "refusing to apply: $_why"; }
+  cmd_load >/dev/null || exit $?
+  # Arm before the first write.  If the phone reboots during observation,
+  # post-fs-data.sh turns this into a trip instead of trusting the profile.
+  arm_state
+  state_set state pending
+  state_set applied '0 0 0 0'
+  write_offset 0 "$1" || { cmd_restore >/dev/null 2>&1; state_set state error; EXIT_CODE=3 die "write little failed"; }
+  ramp_sleep
+  write_offset 1 "$2" || { cmd_restore >/dev/null 2>&1; state_set state error; EXIT_CODE=3 die "write middle failed"; }
+  ramp_sleep
+  write_offset 2 "$3" || { cmd_restore >/dev/null 2>&1; state_set state error; EXIT_CODE=3 die "write big failed"; }
+  ramp_sleep
+  write_offset 3 "$4" || { cmd_restore >/dev/null 2>&1; state_set state error; EXIT_CODE=3 die "write cci failed"; }
+  state_set applied "$1 $2 $3 $4"
+  state_set state ready
+  printf 'applied=%s %s %s %s\n' "$1" "$2" "$3" "$4"
+}
+
+cmd_confirm() {
+  [ "$(state_get_or armed 0)" = "1" ] || { printf 'armed=0\n'; return 0; }
+  clear_arm
+  state_set state confirmed
+  printf 'armed=0\n'
+}
+
+cmd_reset_trip() {
+  if eem_present; then
+    cmd_restore >/dev/null || exit $?
+  fi
+  rm -f "$TRIP_FILE" 2>/dev/null || true
+  state_set state idle
+  state_set applied '0 0 0 0'
+  state_set armed 0
+  printf 'trip=0\n'
+}
+
+cmd_status() {
+  printf 'module=%s\n' "$MOD_ID"
+  printf 'version=%s\n' "$(cmd_version)"
+  printf 'kernel=%s\n' "$(kernel_rel)"
+  printf 'ko_vermagic=%s\n' "$(ko_vermagic 2>/dev/null || printf 'missing')"
+  if ko_match; then printf 'ko_match=1\n'; else printf 'ko_match=0\n'; fi
+  if ko_loaded; then printf 'ko_loaded=1\n'; else printf 'ko_loaded=0\n'; fi
+  if eem_present; then printf 'eem_present=1\n'; else printf 'eem_present=0\n'; fi
+  printf 'max_abs_steps=%s\n' "$(get_limit max_abs_steps 6)"
+  printf 'applied=%s\n' "$(state_get_or applied '0 0 0 0')"
+  printf 'armed=%s\n' "$(state_get_or armed 0)"
+  printf 'state=%s\n' "$(state_get_or state idle)"
+  printf 'boot_id=%s\n' "$(state_get_or boot_id unknown)"
+  if [ -f "$TRIP_FILE" ]; then printf 'trip=%s\n' "$(cat "$TRIP_FILE" 2>/dev/null)"; else printf 'trip=none\n'; fi
+}
+
+case "${1:-status}" in
+  version)     cmd_version ;;
+  probe)       cmd_probe ;;
+  load)        cmd_load ;;
+  unload)      cmd_unload ;;
+  restore)     cmd_restore ;;
+  apply)       shift; cmd_apply "$@" ;;
+  confirm)     cmd_confirm ;;
+  reset-trip)  cmd_reset_trip ;;
+  status)      cmd_status ;;
+  *)
+    printf 'usage: %s {probe|load|unload|apply L M B C|restore|confirm|reset-trip|status|version}\n' "$0" >&2
+    exit 1
+    ;;
+esac

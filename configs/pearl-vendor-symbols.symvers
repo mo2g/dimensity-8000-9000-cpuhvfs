@@ -1,0 +1,3 @@
+0x73e08ef8	get_mcupm_ipidev	mcupm	EXPORT_SYMBOL_GPL	
+0xb2ebd287	mtk_ipi_send_compl	mtk_tinysys_ipi	EXPORT_SYMBOL	
+0xa183ffc0	mtk_ipi_register	mtk_tinysys_ipi	EXPORT_SYMBOL	

@@ -1,0 +1,45 @@
+name: package-magisk-module
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate scripts and kernel object
+        run: |
+          set -eu
+          for f in bin/lib.sh bin/cpuhvfs-ctl customize.sh post-fs-data.sh service.sh uninstall.sh action.sh; do
+            sh -n "$f"
+          done
+          bash -n scripts/build-ko.sh scripts/package.sh
+          test -s lib/cpuhvfs.ko
+          expected=$(grep -a -o 'vermagic=[^ ]*' lib/cpuhvfs.ko | head -1 | cut -d= -f2)
+          test "$expected" = "5.10.136-pearl-cve43499"
+          file lib/cpuhvfs.ko | grep -q 'aarch64'
+
+      - name: Package
+        run: ./scripts/package.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: magisk-module
+          path: dist/*
+
+      - name: Publish tagged release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "$GITHUB_REF_NAME" \
+            --notes "Magisk module $GITHUB_REF_NAME. Verify the kernel vermagic before flashing."

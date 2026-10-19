@@ -1,0 +1,6 @@
+.DS_Store
+dist/
+out/
+*.zip
+*.log
+*.tmp

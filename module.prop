@@ -1,0 +1,6 @@
+id=dimensity-8000-9000-cpuhvfs
+name=天玑8000/9000 降压驱动（开源版）
+version=v1.0.0
+versionCode=10000
+author=mo2g
+description=Open-source MTK cpuhvfs driver for Dimensity 8000/9000. Built for the exact kernel, safe CLI, Smart Power integration. Default: no undervolt.

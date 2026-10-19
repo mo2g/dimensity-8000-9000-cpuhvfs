@@ -1,0 +1,9 @@
+module=dimensity-8000-9000-cpuhvfs
+api=1
+version=1.0.0
+commands=probe,load,unload,apply,restore,confirm,reset-trip,status,version
+ko=/data/adb/modules/dimensity-8000-9000-cpuhvfs/lib/cpuhvfs.ko
+state=/data/adb/dimensity-8000-9000-cpuhvfs/state
+trip=/data/adb/dimensity-8000-9000-cpuhvfs/trip
+max_abs_steps=6
+default_action=none
