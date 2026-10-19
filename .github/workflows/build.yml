@@ -5,6 +5,12 @@ on:
     branches: [main]
     tags: ['v*']
   pull_request:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag to create or reuse for the release"
+        required: true
+        default: "v1.0.0"
 
 permissions:
   contents: write
@@ -35,11 +41,18 @@ jobs:
           name: magisk-module
           path: dist/*
 
-      - name: Publish tagged release
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* \
-            --title "$GITHUB_REF_NAME" \
-            --notes "Magisk module $GITHUB_REF_NAME. Verify the kernel vermagic before flashing."
+          set -eu
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" dist/* --clobber
+          else
+            gh release create "$RELEASE_TAG" dist/* \
+              --title "$RELEASE_TAG" \
+              --notes "Magisk module $RELEASE_TAG. Verify the kernel vermagic before flashing." \
+              --target "$GITHUB_SHA"
+          fi

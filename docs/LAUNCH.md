@@ -11,6 +11,7 @@ project easy to trust, easy to try, and easy to report against.
 - [ ] Upload `assets/social-preview.png` as the GitHub social preview.
 - [ ] Create a tagged release with the Magisk zip and SHA256.
 - [ ] Confirm `module.prop`'s `updateJson` URL and release asset URL.
+- [ ] If a tag push is deduplicated, run the workflow manually with `workflow_dispatch` and `release_tag=v1.0.0`.
 - [ ] Pin the compatibility matrix or an “install first” issue/discussion.
 - [ ] Check that the old-module migration and rollback instructions are visible.
 
