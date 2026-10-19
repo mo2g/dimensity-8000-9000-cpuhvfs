@@ -1,0 +1,14 @@
+--- a/bin/uv.sh
++++ b/bin/uv.sh
+@@ -23,9 +23,11 @@
+ SP_EEM_LITE_DIR="${SP_EEM_LITE_DIR:-/proc/eem_lite}"   # 原厂 cpudvfs.ko 提供的只读电压表
+-SP_UV_MOD_ID="${SP_UV_MOD_ID:-dimensity_8100_9000_cpuhvfs}"
++SP_UV_MOD_ID="${SP_UV_MOD_ID:-$(sp_get uv_module_id)}"
++SP_UV_MOD_ID="${SP_UV_MOD_ID:-dimensity_8100_9000_cpuhvfs}"
+ SP_UV_MOD_DIR="${SP_UV_MOD_DIR:-/data/adb/modules/$SP_UV_MOD_ID}"
+-SP_UV_KO="${SP_UV_KO:-$SP_UV_MOD_DIR/cpuhvfs.ko}"
++SP_UV_KO="${SP_UV_KO:-$(sp_get uv_ko_path)}"
++SP_UV_KO="${SP_UV_KO:-$SP_UV_MOD_DIR/lib/cpuhvfs.ko}"
+ SP_UV_THIRD_CONF="${SP_UV_THIRD_CONF:-/data/eem_offset.conf}"
+ SP_INSMOD="${SP_INSMOD:-insmod}"
+ UV_STEP_SLEEP="${UV_STEP_SLEEP:-2}"       # 缓降每步间隔（秒）

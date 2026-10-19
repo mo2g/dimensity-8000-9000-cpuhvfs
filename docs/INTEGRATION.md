@@ -52,7 +52,8 @@ SP_UV_KO="${SP_UV_KO:-$SP_UV_MOD_DIR/lib/cpuhvfs.ko}"
 ```
 
 `sp_get` must already have loaded `power.conf`; current Smart Power calls
-`sp_load_conf` before these assignments, so the patch is a drop-in.
+`sp_load_conf` before these assignments, so the patch is a drop-in. A ready-to-apply
+diff is in `patches/smart-power-uv.patch`.
 
 The old module is **not** a safe fallback for this module because both expose
 the same kernel name `cpuhvfs` and `/proc/eem`. Keep exactly one of them
