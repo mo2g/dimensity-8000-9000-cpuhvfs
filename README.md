@@ -171,6 +171,7 @@ See [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) and
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Module, driver, `/proc/eem`, and Smart Power flow |
 | [docs/FAQ.md](docs/FAQ.md) | Common install, kernel, and safety questions |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Bug reports, testing, and pull requests |
+| [docs/LAUNCH.md](docs/LAUNCH.md) | Release, community, and promotion checklist |
 | [ROADMAP.md](ROADMAP.md) | What is planned next |
 
 ## Project layout

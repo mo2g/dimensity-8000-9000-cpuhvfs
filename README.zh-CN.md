@@ -162,6 +162,7 @@ service 只加载驱动，不负责写入偏移，因此可以保持 Magisk 模�
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 模块、驱动、`/proc/eem` 和 Smart Power 数据流 |
 | [docs/FAQ.md](docs/FAQ.md) | 安装、内核和安全常见问题 |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Bug、测试和 PR 规范 |
+| [docs/LAUNCH.md](docs/LAUNCH.md) | 发布、社区和推广清单 |
 | [ROADMAP.md](ROADMAP.md) | 后续计划 |
 
 ## 项目结构
