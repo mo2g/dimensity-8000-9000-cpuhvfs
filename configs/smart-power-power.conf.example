@@ -1,4 +1,4 @@
-# Add these keys to /data/adb/smart-power/config/power.conf
+# Add these keys to /data/adb/smart-power/power.conf
 uv_module_id=dimensity-8000-9000-cpuhvfs
 uv_ko_path=/data/adb/modules/dimensity-8000-9000-cpuhvfs/lib/cpuhvfs.ko
 uv_keep_module_enabled=1
