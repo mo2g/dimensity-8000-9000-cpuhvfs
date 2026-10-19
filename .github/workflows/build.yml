@@ -50,6 +50,10 @@ jobs:
           set -eu
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" dist/* --clobber
+          elif gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" dist/* \
+              --title "$RELEASE_TAG" \
+              --notes "Magisk module $RELEASE_TAG. Verify the kernel vermagic before flashing."
           else
             gh release create "$RELEASE_TAG" dist/* \
               --title "$RELEASE_TAG" \
