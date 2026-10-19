@@ -8,6 +8,7 @@
 [![Magisk](https://img.shields.io/badge/Magisk-30.6%2B-00A96E.svg)](https://github.com/topjohnwu/Magisk)
 [![Android 13](https://img.shields.io/badge/Android-13-3DDC84.svg)](https://www.android.com/)
 [![Kernel](https://img.shields.io/badge/kernel-5.10.136--pearl--cve43499-orange.svg)](docs/COMPATIBILITY.md)
+[![Release](https://img.shields.io/github/v/release/mo2g/dimensity-8000-9000-cpuhvfs?display_name=tag&sort=semver)](https://github.com/mo2g/dimensity-8000-9000-cpuhvfs/releases)
 
 > [!WARNING]
 > 这是实验性内核模块，不是通用降压 App。
