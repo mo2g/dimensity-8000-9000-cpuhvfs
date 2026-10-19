@@ -179,7 +179,7 @@ docs/                 构建、安全、兼容性、架构文档
 
 ## 贡献与支持
 
-- 提交 PR 前阅读 [CONTRIBUTING.md](CONTRIBUTING.md)；
+- 提交 PR 前阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 和 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)；
 - 提 Bug 请附 `uname -r`、`cpuhvfs-ctl status`、`uv.sh status` 和相关 `dmesg`；
 - 不要只发布跨内核二进制，必须同时提供对应源码、配置和符号来源；
 - 如果项目对你有帮助，点一个 Star 能让更多天玑用户找到它。

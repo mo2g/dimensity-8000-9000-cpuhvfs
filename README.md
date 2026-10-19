@@ -188,7 +188,7 @@ docs/                 build, safety, compatibility, architecture
 
 ## Contributing and support
 
-- Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) before contributing.
 - Use the issue forms and include `uname -r`, `cpuhvfs-ctl status`,
   `uv.sh status`, and relevant `dmesg` lines.
 - Do not publish a binary built for a different kernel without also publishing

@@ -37,6 +37,9 @@ observe_sec=600
 `max_*` values are per-cluster caps. Keep `cci` at `0` unless there is a
 specific, measured reason to change it.
 
+If the old driver is already unloaded and you need to avoid a reboot, follow
+[NO-REBOOT-SWITCH.md](NO-REBOOT-SWITCH.md) only after verifying its preconditions.
+
 ## Before testing
 
 1. Back up `boot_a` and know the rollback command.

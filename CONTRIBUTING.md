@@ -2,6 +2,8 @@
 
 Thank you for helping make Dimensity undervolting safer and easier to audit.
 
+By participating, you agree to follow [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+
 ## Before opening an issue
 
 Collect:
