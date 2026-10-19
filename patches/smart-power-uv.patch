@@ -1,6 +1,6 @@
 --- a/bin/uv.sh
 +++ b/bin/uv.sh
-@@ -23,9 +23,11 @@
+@@ -23,7 +23,9 @@
  SP_EEM_LITE_DIR="${SP_EEM_LITE_DIR:-/proc/eem_lite}"   # 原厂 cpudvfs.ko 提供的只读电压表
 -SP_UV_MOD_ID="${SP_UV_MOD_ID:-dimensity_8100_9000_cpuhvfs}"
 +SP_UV_MOD_ID="${SP_UV_MOD_ID:-$(sp_get uv_module_id)}"
