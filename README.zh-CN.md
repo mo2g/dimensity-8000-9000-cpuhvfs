@@ -93,7 +93,14 @@ SP_UV_KO="${SP_UV_KO:-$(sp_get uv_ko_path)}"
 SP_UV_KO="${SP_UV_KO:-$SP_UV_MOD_DIR/lib/cpuhvfs.ko}"
 ```
 
-并在 `/data/adb/smart-power/config/power.conf` 写入：
+并如果继续使用 Smart Power 直接写 `/proc/eem` 的旧路径，本模块 `etc/limits.conf` 不会拦截它的写入；必须把 Smart Power 自己的限幅也设为 6：
+
+```sh
+su -c 'sh /data/adb/modules/smart_power/bin/uv.sh limit 6'
+su -c 'sh /data/adb/modules/smart_power/bin/uv.sh confirm-sec 600'
+```
+
+在 `/data/adb/smart-power/config/power.conf` 写入：
 
 ```ini
 uv_module_id=dimensity-8000-9000-cpuhvfs

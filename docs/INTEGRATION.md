@@ -38,6 +38,15 @@ SP_UV_KO=/data/adb/modules/dimensity-8000-9000-cpuhvfs/lib/cpuhvfs.ko \
 sh /data/adb/modules/smart_power/bin/uv.sh status
 ```
 
+**Important:** if Smart Power keeps its existing direct-write path, it writes
+`/proc/eem/eem_offset` itself and does not consult this module's
+`etc/limits.conf`. Set Smart Power's own limit as well:
+
+```sh
+su -c 'sh /data/adb/modules/smart_power/bin/uv.sh limit 6'
+su -c 'sh /data/adb/modules/smart_power/bin/uv.sh confirm-sec 600'
+```
+
 ## 3. Minimal Smart Power patch
 
 Current Smart Power `bin/uv.sh` defaults to the old module ID. Replace the
