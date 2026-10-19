@@ -37,7 +37,7 @@ kernel_rel() { uname -r; }
 
 ko_vermagic() {
   [ -f "$KO" ] || return 1
-  tr -d '\000' < "$KO" 2>/dev/null | grep -a -o 'vermagic=[^ ]*' | head -1 | cut -d= -f2
+  grep -a -o 'vermagic=[^ ]*' "$KO" 2>/dev/null | head -1 | cut -d= -f2
 }
 
 ko_match() {

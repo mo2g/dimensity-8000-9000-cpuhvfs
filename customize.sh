@@ -16,7 +16,7 @@ ui "Target kernel: $(uname -r)"
 [ -f "$KO" ] || fail "missing lib/cpuhvfs.ko"
 [ "$(getprop ro.product.cpu.abi 2>/dev/null)" = "arm64-v8a" ] || fail "this package is arm64-only"
 
-KO_VERMAGIC=$(tr -d '\000' < "$KO" 2>/dev/null | grep -a -o 'vermagic=[^ ]*' | head -1 | cut -d= -f2)
+KO_VERMAGIC=$(grep -a -o 'vermagic=[^ ]*' "$KO" 2>/dev/null | head -1 | cut -d= -f2)
 [ -n "$KO_VERMAGIC" ] || fail "cannot read vermagic from lib/cpuhvfs.ko"
 [ "$KO_VERMAGIC" = "$(uname -r)" ] || fail "kernel mismatch: module=$KO_VERMAGIC device=$(uname -r)"
 
