@@ -1,6 +1,8 @@
 --- a/bin/uv.sh
 +++ b/bin/uv.sh
-@@ -32,7 +32,14 @@
+@@ -30,9 +30,16 @@
+ # 路径/命令均可用环境变量覆盖，便于本地测试
+ SP_EEM_DIR="${SP_EEM_DIR:-/proc/eem}"
  SP_EEM_LITE_DIR="${SP_EEM_LITE_DIR:-/proc/eem_lite}"   # 原厂 cpudvfs.ko 提供的只读电压表
 -SP_UV_MOD_ID="${SP_UV_MOD_ID:-dimensity_8100_9000_cpuhvfs}"
 +SP_UV_MOD_ID="${SP_UV_MOD_ID:-${uv_module_id:-dimensity_8100_9000_cpuhvfs}}"
@@ -17,7 +19,9 @@
  SP_UV_THIRD_CONF="${SP_UV_THIRD_CONF:-/data/eem_offset.conf}"
  SP_INSMOD="${SP_INSMOD:-insmod}"
  UV_STEP_SLEEP="${UV_STEP_SLEEP:-2}"       # 缓降每步间隔（秒）
-@@ -179,4 +179,8 @@ uv_adopt() {
+@@ -178,6 +185,10 @@
+ # ---------- 原模块启用/禁用（只撤销自己放的 disable）----------
+ uv_adopt() {
    uv_mod_present || return 1
 +  if [ "${uv_keep_module_enabled:-0}" = "1" ]; then
 +    uv_log "Keeping $SP_UV_MOD_ID enabled: its service only loads the driver"
@@ -26,3 +30,27 @@
    if [ ! -f "$SP_UV_MOD_DIR/disable" ]; then
      : > "$SP_UV_MOD_DIR/disable" || return 1
      mkdir -p "$UV_DIR" 2>/dev/null; : > "$UV_MARK_DISABLED"
+@@ -708,7 +719,9 @@
+   echo "uv_max_temp_mc=$(uv_get max_temp_mc 45000)"
+   echo "uv_blocked=${uv_why:-}"
+   # 无保护：原模块启用且不在守护之下（不管理，或托管时被人重新启用）
+-  if uv_mod_enabled && [ "$uv_m" != "guard" ]; then echo "uv_unmanaged_warning=1"; else echo "uv_unmanaged_warning=0"; fi
++  if [ "${uv_keep_module_enabled:-0}" = "1" ]; then echo "uv_unmanaged_warning=0"
++  elif uv_mod_enabled && [ "$uv_m" != "guard" ]; then echo "uv_unmanaged_warning=1"
++  else echo "uv_unmanaged_warning=0"; fi
+   echo "uv_volt_source=$( [ -r "$SP_EEM_DIR/eem_cur_volt" ] && echo eem || { [ -r "$SP_EEM_LITE_DIR/eem_cur_volt" ] && echo eem_lite || echo none; } )"
+ }
+ 
+@@ -740,7 +753,11 @@
+       [ -n "$uv_tp" ] && [ -n "$(uv_profile_check "$uv_tp")" ] && echo "[WARN] Original module config $uv_tp exceeds the -$(uv_limit) limit (guard mode cannot limit what it writes)" ;;
+     managed)
+       echo "[ OK ] Control mode=managed"
+-      uv_mod_enabled && echo "[WARN] The original module was re-enabled (it will be disabled again at the next boot)" ;;
++      if [ "${uv_keep_module_enabled:-0}" = "1" ]; then
++        echo "[INFO] Managed module kept enabled; its service only loads the driver"
++      else
++        uv_mod_enabled && echo "[WARN] The original module was re-enabled (it will be disabled again at the next boot)"
++      fi ;;
+   esac
+   case "$(uv_state)" in
+     tripped) echo "[HIGH] Circuit breaker tripped: $(cat "$UV_TRIPPED" 2>/dev/null)" ;;
